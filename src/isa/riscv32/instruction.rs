@@ -243,39 +243,39 @@ uint32_t imm       : 5;
 uint32_t opcode1_0 : 2;
 */
 impl JType {
-    // 11 00000 00000 00000000 0 0000000000 0
     pub fn op1(&self) -> u32 {
         self.0 & MASK2
     }
 
-    // 00 11111 00000 00000000 0 0000000000 0
     pub fn op2(&self) -> u32 {
         self.0 >> 2 & MASK5
     }
 
-    // 00 00000 11111 00000000 0 0000000000 0
     pub fn rd(&self) -> u32 {
         self.0 >> 7 & MASK5
     }
 
-    // 00 00000 00000 11111111 0 0000000000 0
     pub fn imm1(&self) -> u32 {
         self.0 >> 12 & MASK8
     }
 
-    // 00 00000 00000 00000000 1 0000000000 0
     pub fn imm2(&self) -> u32 {
         self.0 >> 20 & MASK1
     }
 
-    // 00 00000 00000 00000000 0 1111111111 0
     pub fn imm3(&self) -> u32 {
         self.0 >> 21 & MASK10
     }
 
-    // 00 00000 00000 00000000 0 0000000000 1
     pub fn imm4(&self) -> u32 {
         self.0 >> 31 & MASK1
+    }
+
+    pub fn imm(&self) -> u32 {
+        ((self.0 & 0x8000_0000) >> 11)
+            | ((self.0 & 0x7fe0_0000) >> 20)
+            | ((self.0 & 0x0010_0000) >> 9)
+            | (self.0 & 0x000f_f000)
     }
 }
 
@@ -431,15 +431,27 @@ mod tests {
     #[test]
     #[allow(overflowing_literals)]
     fn jtype() {
-        // assert_eq!(JType(0xfe1ff06f).imm(), (0x800029eci32 - 0x80002a0ci32) as u32 & 0x1fffff); // jal x0,800029ec
-        // assert_eq!(JType(0x0000006f).imm(), 0x80002258 - 0x80002258); // jal x0,80002258
-        // assert_eq!(JType(0xf89ff06f).imm(), (0x800027aci32 - 0x80002824i32)  as u32 & 0x1fffff); // jal x0,800027ac
-        // assert_eq!(JType(0x0240006f).imm(), 0x8000215c - 0x80002138); // jal x0,8000215c
-        // assert_eq!(JType(0xd89ff0ef).imm(), (0x80002230i32 - 0x800024a8i32) as u32 & 0x1fffff); // jal x1,80002230
-        // assert_eq!(JType(0x008007ef).imm(), 0x8000265c - 0x80002654); // jal x15,8000265c
-        // assert_eq!(JType(0x0240006f).imm(), 0x80002154 - 0x80002130); // jal x0,80002154
-        // assert_eq!(JType(0xf71ff06f).imm(), (0x80002750i32 - 0x800027e0i32) as u32 & 0x1fffff); // jal x0,80002750
-        // assert_eq!(JType(0x00c0006f).imm(), 0x8000000c - 0x80000000); // jal x0,8000000c
+        assert_eq!(
+            JType(0xfe1ff06f).imm(),
+            (0x800029eci32 - 0x80002a0ci32) as u32 & 0x1fffff
+        ); // jal x0,800029ec
+        assert_eq!(JType(0x0000006f).imm(), 0x80002258 - 0x80002258); // jal x0,80002258
+        assert_eq!(
+            JType(0xf89ff06f).imm(),
+            (0x800027aci32 - 0x80002824i32) as u32 & 0x1fffff
+        ); // jal x0,800027ac
+        assert_eq!(JType(0x0240006f).imm(), 0x8000215c - 0x80002138); // jal x0,8000215c
+        assert_eq!(
+            JType(0xd89ff0ef).imm(),
+            (0x80002230i32 - 0x800024a8i32) as u32 & 0x1fffff
+        ); // jal x1,80002230
+        assert_eq!(JType(0x008007ef).imm(), 0x8000265c - 0x80002654); // jal x15,8000265c
+        assert_eq!(JType(0x0240006f).imm(), 0x80002154 - 0x80002130); // jal x0,80002154
+        assert_eq!(
+            JType(0xf71ff06f).imm(),
+            (0x80002750i32 - 0x800027e0i32) as u32 & 0x1fffff
+        ); // jal x0,80002750
+        assert_eq!(JType(0x00c0006f).imm(), 0x8000000c - 0x80000000); // jal x0,8000000c
 
         assert_eq!(JType(0xfe1ff06f).rd(), 0); // jal x0,800029ec
         assert_eq!(JType(0x0000006f).rd(), 0); // jal x0,80002258
