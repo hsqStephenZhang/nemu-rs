@@ -1,3 +1,5 @@
 pub mod decode;
-pub mod instruction;
+pub mod types;
 pub mod reg;
+pub mod instruction;
+pub mod error;
