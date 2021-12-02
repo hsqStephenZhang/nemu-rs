@@ -1,4 +1,4 @@
-use super::types::{UType, BType, JType, IType, SType, RType, CsrIType, CsrType, ShiftType, FenceType};
+use super::types::{UType, BType, JType, IType, SType, RType, CsrIType, CsrType, ShiftType, FenceType, CIType, CJType, CRType, CBType};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Instruction {
@@ -104,6 +104,27 @@ pub enum Instruction {
     Divuw(RType),
     Remw(RType),
     Remuw(RType),
+
+    // compressed 
+    CNOP(CIType),
+    CADDI(CIType),
+    CJAL(CJType),
+    CLI(CIType),
+    CADDI16(CIType),
+    CLUI(CIType),
+    CRLI(CIType),
+    CRAI(CIType),
+    CANDI(CIType),
+    
+    CSUB(CRType),
+    CXOR(CRType),
+    COR(CRType),
+    CAND(CRType),
+    CJ(CJType),
+
+    CBEQZ(CBType),
+    CBNEZ(CBType),
+
     // Illegal
     Illegal,
 }

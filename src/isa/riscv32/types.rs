@@ -1,5 +1,25 @@
 pub const NUM_REGISTERS: usize = 32;
 
+pub trait Funct3 {
+    fn funct3(&self) -> u32;
+}
+
+trait Funct7 {
+    fn funct7(&self) -> u32;
+}
+
+impl Funct3 for u32 {
+    fn funct3(&self) -> u32 {
+        (*self >> 12) & MASK3
+    }
+}
+
+impl Funct3 for u16 {
+    fn funct3(&self) -> u32 {
+        (*self >> 13) as u32 & MASK3
+    }
+}
+
 #[repr(C)]
 pub struct CpuState {
     regs: [i64; NUM_REGISTERS],
@@ -35,21 +55,33 @@ pub struct ShiftType(pub u32);
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct FenceType(pub u32);
 
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct CIType(pub u16);
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct CRType(pub u16);
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct CJType(pub u16);
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct CBType(pub u16);
 
 const fn mask(v: u32) -> u32 {
     (1 << v) - 1
 }
 
-const MASK1: u32 = mask(1);
-const MASK2: u32 = mask(2);
-const MASK3: u32 = mask(3);
-const MASK5: u32 = mask(5);
-const MASK6: u32 = mask(6);
-const MASK7: u32 = mask(7);
-const MASK8: u32 = mask(8);
-const MASK10: u32 = mask(10);
-const MASK12: u32 = mask(12);
-const MASK20: u32 = mask(20);
+pub const MASK1: u32 = mask(1);
+pub const MASK2: u32 = mask(2);
+pub const MASK3: u32 = mask(3);
+pub const MASK4: u32 = mask(4);
+pub const MASK5: u32 = mask(5);
+pub const MASK6: u32 = mask(6);
+pub const MASK7: u32 = mask(7);
+pub const MASK8: u32 = mask(8);
+pub const MASK10: u32 = mask(10);
+pub const MASK12: u32 = mask(12);
+pub const MASK20: u32 = mask(20);
 
 /*
 int32_t  funct7    : 7;
@@ -57,7 +89,7 @@ uint32_t rs2       : 5;
 uint32_t rs1       : 5;
 uint32_t funct3    : 3;
 uint32_t rd        : 5;
-uint32_t imm       : 5;
+uint32_t opcode2_6 : 5;
 uint32_t opcode1_0 : 2;
 */
 impl RType {
@@ -65,7 +97,7 @@ impl RType {
         self.0 & MASK2
     }
 
-    pub fn imm(&self) -> u32 {
+    pub fn op2(&self) -> u32 {
         self.0 >> 2 & MASK5
     }
 
@@ -95,7 +127,7 @@ int32_t  simm11_0  : 12;
 uint32_t rs1       : 5;
 uint32_t funct3    : 3;
 uint32_t rd        : 5;
-uint32_t op2       : 5;
+uint32_t opcode2_6 : 5;
 uint32_t opcode1_0 : 2;
 */
 impl IType {
@@ -130,7 +162,7 @@ uint32_t rs2       : 5;
 uint32_t rs1       : 5;
 uint32_t funct3    : 3;
 uint32_t imm1      : 5;
-uint32_t op2       : 5;
+uint32_t opcode2_6 : 5;
 uint32_t opcode1_0 : 2;
 */
 impl SType {
@@ -142,10 +174,6 @@ impl SType {
         self.0 >> 2 & MASK5
     }
 
-    pub fn imm1(&self) -> u32 {
-        self.0 >> 7 & MASK5
-    }
-
     pub fn funct(&self) -> u32 {
         self.0 >> 12 & MASK3
     }
@@ -158,12 +186,8 @@ impl SType {
         self.0 >> 20 & MASK5
     }
 
-    pub fn imm2(&self) -> u32 {
-        self.0 >> 25 & MASK7
-    }
-
     pub fn imm(&self) -> u32 {
-        ((self.0 >> 20) & 0xfe0) | self.imm1()
+        ((self.0 >> 20) & 0xfe0) | self.0 >> 7 & MASK5
     }
 }
 
@@ -173,7 +197,7 @@ uint32_t rs2       : 5;
 uint32_t rs1       : 5;
 uint32_t funct3    : 3;
 uint32_t rd        : 5;
-uint32_t imm       : 5;
+uint32_t opcode2_6 : 5;
 uint32_t opcode1_0 : 2;
 */
 impl BType {
@@ -185,14 +209,6 @@ impl BType {
         self.0 >> 2 & MASK5
     }
 
-    pub fn imm1(&self) -> u32 {
-        self.0 >> 7 & MASK1
-    }
-
-    pub fn imm2(&self) -> u32 {
-        self.0 >> 8 & MASK3
-    }
-
     pub fn funct(&self) -> u32 {
         self.0 >> 12 & MASK3
     }
@@ -203,14 +219,6 @@ impl BType {
 
     pub fn rs2(&self) -> u32 {
         self.0 >> 20 & MASK5
-    }
-
-    pub fn imm3(&self) -> u32 {
-        self.0 >> 25 & MASK6
-    }
-
-    pub fn imm4(&self) -> u32 {
-        self.0 >> 31 & MASK1
     }
 
     pub fn imm(&self) -> u32 {
@@ -224,7 +232,7 @@ impl BType {
 /*
 int32_t  simm20_0  : 20;
 uint32_t rd        : 5;
-uint32_t imm       : 5;
+uint32_t opcode2_6 : 5;
 uint32_t opcode1_0 : 2;
 */
 impl UType {
@@ -240,18 +248,18 @@ impl UType {
         self.0 >> 7 & MASK5
     }
 
-    pub fn simm(&self) -> u32 {
+    pub fn imm(&self) -> u32 {
         self.0 >> 12 & MASK20
     }
 }
 
 /*
-int32_t  imm4      : 1;
-int32_t  imm3      : 10;
-int32_t  imm2      : 1;
-int32_t  imm1      : 8;
+int32_t  imm20      : 1;
+int32_t  imm1_10      : 10;
+int32_t  imm11      : 1;
+int32_t  imm12_10      : 8;
 uint32_t rd        : 5;
-uint32_t imm       : 5;
+uint32_t opcode2_6 : 5;
 uint32_t opcode1_0 : 2;
 */
 impl JType {
@@ -265,22 +273,6 @@ impl JType {
 
     pub fn rd(&self) -> u32 {
         self.0 >> 7 & MASK5
-    }
-
-    pub fn imm1(&self) -> u32 {
-        self.0 >> 12 & MASK8
-    }
-
-    pub fn imm2(&self) -> u32 {
-        self.0 >> 20 & MASK1
-    }
-
-    pub fn imm3(&self) -> u32 {
-        self.0 >> 21 & MASK10
-    }
-
-    pub fn imm4(&self) -> u32 {
-        self.0 >> 31 & MASK1
     }
 
     pub fn imm(&self) -> u32 {
@@ -333,6 +325,58 @@ impl FenceType {
     }
     pub fn succ(&self) -> u32 {
         (self.0 >> 20) & 0xf
+    }
+}
+
+impl CIType {
+    pub fn funct(&self) -> u32 {
+        (self.0 as u32) >> 13 & MASK3
+    }
+
+    pub fn imm(&self) -> u32 {
+        ((self.0 as u32) >> 2 & MASK4) | ((self.0 as u32) >> 12 & MASK1)
+    }
+
+    pub fn rs1(&self) -> u32 {
+        (self.0 as u32) >> 7 & MASK5
+    }
+}
+
+impl CRType {
+    pub fn funct(&self) -> u32 {
+        (self.0 as u32) >> 13 & MASK3
+    }
+
+    pub fn rs1(&self) -> u32 {
+        (self.0 as u32) >> 7 & MASK3
+    }
+
+    pub fn rs2(&self) -> u32 {
+        (self.0 as u32) >> 2 & MASK3
+    }
+}
+
+impl CJType {
+    pub fn funct(&self) -> u32 {
+        (self.0 as u32) >> 13 & MASK3
+    }
+
+    pub fn imm(&self) -> u32 {
+        todo!()
+    }
+}
+
+impl CBType {
+    pub fn funct(&self) -> u32 {
+        (self.0 as u32) >> 13 & MASK3
+    }
+
+    pub fn rs1(&self) -> u32 {
+        (self.0 as u32) >> 7 & MASK3
+    }
+
+    pub fn imm(&self) -> u32 {
+        todo!()
     }
 }
 
