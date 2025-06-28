@@ -1,0 +1,8 @@
+[package]
+name = "disasm"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+capstone = { version = "0.13" }
+thiserror = "2"
