@@ -6,6 +6,8 @@
  * void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
  */
 
+pub mod qemu;
+
 // fixed to use u64 for paddr_t
 // TODO: use compile flags to determine the paddr_t type
 type Paddr = u64;
