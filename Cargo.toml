@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = [ "crates/disasm","crates/eval"]
+members = [ "crates/difftest", "crates/disasm","crates/eval"]
 
 [dependencies]
