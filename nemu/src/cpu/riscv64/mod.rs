@@ -4,7 +4,7 @@ use riscv_decode::{
     Instruction,
     types::{BType, IType, JType, RType, SType, UType},
 };
-use tracing::debug;
+use tracing::*;
 
 use crate::{
     cpu::{
@@ -13,6 +13,7 @@ use crate::{
             logo::LOGO,
             mmu::MMU,
             regs::{GRegName, GeneralRegs},
+            reserved::Reserve,
         },
     },
     memory::addr::VAddr,
@@ -23,10 +24,12 @@ mod insn;
 mod logo;
 mod mmu;
 mod regs;
+mod reserved;
 
 // TODO: CSR and system related state
 pub struct RISCV64 {
     state: NemuState,
+    reserve: Reserve,
     halt_pc: u64,
     halt_ret: u64,
     // general registers
@@ -61,7 +64,12 @@ impl Cpu for RISCV64 {
         };
         let instruction = self.ifetch(pc).unwrap();
         disasm::disasm_with(&instruction.to_le_bytes(), Some(pc.0), &printer).unwrap();
-        let insn = riscv_decode::decode(instruction).unwrap();
+        let insn = match riscv_decode::decode(instruction) {
+            Ok(insn) => insn,
+            Err(e) => {
+                panic!("Failed to decode instruction at {:#x}: {:?}", pc.0, e);
+            }
+        };
         let next_pc = self.exec_and_get_next_pc(pc.0, insn);
         self.regs.pc = next_pc;
     }
@@ -112,6 +120,38 @@ impl RISCV64 {
             let rs1_value = self.regs.get(itype.rs1());
             let imm = sign_extend(itype.imm(), itype.bits());
             op(rs1_value, imm)
+        };
+        let atomic_word = |state: &mut RISCV64, rtype: RType, op: fn(i32, i32) -> i32| {
+            let addr = state.regs.get(rtype.rs1());
+            let value1 = state
+                .mmu
+                .read(VAddr(addr), crate::memory::Size::Word)
+                .unwrap() as i32;
+            state.regs.set(rtype.rd(), value1 as i64 as u64);
+            let rs2_value = state.regs.get(rtype.rs2()) as i32;
+            let result = op(value1, rs2_value);
+            state
+                .mmu
+                .write(
+                    VAddr(addr),
+                    crate::memory::Size::Word,
+                    signed_ext_32_64(result as u32),
+                )
+                .unwrap();
+        };
+        let atomic_double_word = |state: &mut RISCV64, rtype: RType, op: fn(i64, i64) -> i64| {
+            let addr = state.regs.get(rtype.rs1());
+            let value1 = state
+                .mmu
+                .read(VAddr(addr), crate::memory::Size::DoubleWord)
+                .unwrap();
+            state.regs.set(rtype.rd(), value1);
+            let rs2_value = state.regs.get(rtype.rs2());
+            let result = op(value1 as i64, rs2_value as i64);
+            state
+                .mmu
+                .write(VAddr(addr), crate::memory::Size::DoubleWord, result as u64)
+                .unwrap();
         };
         // x[rd]=sext(M[x[rs1]+sext(offset)][7:0])
         let unwrap_read = |state: &mut RISCV64, itype: IType, size: crate::memory::Size| {
@@ -479,7 +519,9 @@ impl RISCV64 {
             }
 
             // Fence
-            Instruction::Fence(_) => todo!(),
+            Instruction::Fence(_) => {
+                // TODO: make sure that the ordering of observation
+            }
             Instruction::FenceI => todo!(),
 
             // System
@@ -631,19 +673,121 @@ impl RISCV64 {
             }
 
             // RV64A Standard Extension
-            Instruction::AmoswapD(_) => todo!(),
-            Instruction::AmoaddD(_) => todo!(),
-            Instruction::AmoxorD(_) => todo!(),
-            Instruction::AmoandD(_) => todo!(),
-            Instruction::AmoorD(_) => todo!(),
-            Instruction::AmominD(_) => todo!(),
-            Instruction::AmomaxD(_) => todo!(),
-            Instruction::AmominuD(_) => todo!(),
-            Instruction::AmomaxuD(_) => todo!(),
-            Instruction::LrD(_) => todo!(),
-            Instruction::ScD(_) => todo!(),
+            Instruction::AmoswapD(rtype) => {
+                let addr = self.regs.get(rtype.rs1());
+                let value1 = self
+                    .mmu
+                    .read(VAddr(addr), crate::memory::Size::DoubleWord)
+                    .unwrap();
+                self.regs.set(rtype.rd(), value1);
+                let rs2_value = self.regs.get(rtype.rs2());
+                self.mmu
+                    .write(VAddr(addr), crate::memory::Size::DoubleWord, rs2_value)
+                    .unwrap();
+            }
+            Instruction::AmoaddD(rtype) => {
+                atomic_double_word(self, rtype, i64::wrapping_add);
+            }
+            Instruction::AmoxorD(rtype) => {
+                atomic_double_word(self, rtype, |a, b| a ^ b);
+            }
+            Instruction::AmoandD(rtype) => {
+                atomic_double_word(self, rtype, |a, b| a & b);
+            }
+            Instruction::AmoorD(rtype) => {
+                atomic_double_word(self, rtype, i64::bitor);
+            }
+            Instruction::AmominD(rtype) => {
+                atomic_double_word(self, rtype, i64::min);
+            }
+            Instruction::AmomaxD(rtype) => {
+                atomic_double_word(self, rtype, i64::max);
+            }
+            Instruction::AmominuD(rtype) => {
+                atomic_double_word(self, rtype, |a, b| (a as u64).min(b as u64) as i64);
+            }
+            Instruction::AmomaxuD(rtype) => {
+                atomic_double_word(self, rtype, |a, b| (a as u64).max(b as u64) as i64);
+            }
+            Instruction::LrD(rtype) => {
+                let addr = self.regs.get(rtype.rs1());
+                let value = self
+                    .mmu
+                    .read(VAddr(addr), crate::memory::Size::DoubleWord)
+                    .unwrap();
+                self.reserve.reset(addr);
+                self.regs.set(rtype.rd(), value);
+            }
+            Instruction::ScD(rtype) => {
+                let addr = self.regs.get(rtype.rs1());
+                let value = self.regs.get(rtype.rd());
+                if self.reserve.check(addr) {
+                    self.mmu
+                        .write(VAddr(addr), crate::memory::Size::DoubleWord, value as u64)
+                        .unwrap();
+                    self.regs.set(rtype.rd(), 0);
+                } else {
+                    // If reservation failed, we should not write to memory
+                    // and set rd to 0
+                    self.regs.set(rtype.rd(), 1);
+                }
+            }
+            Instruction::LrW(rtype) => {
+                let addr = self.regs.get(rtype.rs1());
+                let value = self
+                    .mmu
+                    .read(VAddr(addr), crate::memory::Size::Word)
+                    .unwrap() as u32;
+                self.reserve.reset(addr);
+                self.regs.set(rtype.rd(), signed_ext_32_64(value));
+            }
+            Instruction::ScW(rtype) => {
+                let addr = self.regs.get(rtype.rs1());
+                let value = self.regs.get(rtype.rd()) as u32;
+                if self.reserve.check(addr) {
+                    self.mmu
+                        .write(VAddr(addr), crate::memory::Size::Word, value as u64)
+                        .unwrap();
+                    self.regs.set(rtype.rd(), 0);
+                } else {
+                    // If reservation failed, we should not write to memory
+                    // and set rd to 0
+                    self.regs.set(rtype.rd(), 1);
+                }
+            }
             Instruction::Illegal => todo!(),
-            _ => todo!(),
+
+            Instruction::AmoswapW(rtype) => {
+                atomic_word(self, rtype, |_a, b| b);
+            }
+            Instruction::AmoaddW(rtype) => {
+                atomic_word(self, rtype, i32::wrapping_add);
+            }
+            Instruction::AmoorW(rtype) => {
+                atomic_word(self, rtype, i32::bitor);
+            }
+            Instruction::AmoxorW(rtype) => {
+                atomic_word(self, rtype, |a, b| a ^ b);
+            }
+            Instruction::AmoandW(rtype) => {
+                atomic_word(self, rtype, |a, b| a & b);
+            }
+            Instruction::AmominW(rtype) => {
+                atomic_word(self, rtype, i32::min);
+            }
+            Instruction::AmomaxW(rtype) => {
+                atomic_word(self, rtype, i32::max);
+            }
+            Instruction::AmominuW(rtype) => {
+                atomic_word(self, rtype, |a, b| (a as u32).min(b as u32) as i32);
+            }
+            Instruction::AmomaxuW(rtype) => {
+                atomic_word(self, rtype, |a, b| (a as u32).max(b as u32) as i32);
+            }
+
+            _ => {
+                panic!("unknown instruction {:?} at PC {:#x}", instruction, pc);
+            }
         }
 
         next_pc
@@ -772,14 +916,14 @@ impl ITypeExt for IType {
 #[cfg(test)]
 mod tests {
 
+    use std::env;
     use std::{io::Read, u32, u64};
 
-    use riscv_decode::*;
+    use once_cell::sync::Lazy;
     use tracing::info;
 
     use super::*;
     use crate::{
-        device::{consts::SERIAL_MMIO_START, serial::Serial},
         init_log,
         memory::{
             PhyMem,
@@ -788,78 +932,49 @@ mod tests {
         },
     };
 
-    #[test]
-    fn t1() {
-        let ins = decode(0x00000097).unwrap();
-        println!("{:?}", ins);
-    }
+    static CPU_TESTS_DIR: Lazy<String> = Lazy::new(|| {
+        let pa_home = env::var("PA_HOME").expect("Environment variable PA_HOME is not set");
+        let path = std::path::PathBuf::new()
+            .join(pa_home)
+            .join("am-kernels/tests/cpu-tests/build/");
+        path.to_str().unwrap().to_string()
+    });
 
-    #[test]
-    fn test_signed_ext() {
-        let a = u32::MAX;
-        let b = signed_ext_32_64(a);
-        assert_eq!(b, 0xFFFFFFFFFFFFFFFF);
-        assert_eq!(a as u64, 0x00000000FFFFFFFF);
-    }
+    static ALU_TESTS_DIR: Lazy<String> = Lazy::new(|| {
+        let pa_home = env::var("PA_HOME").expect("Environment variable PA_HOME is not set");
+        let path = std::path::PathBuf::new()
+            .join(pa_home)
+            .join("am-kernels/tests/alu-tests/build/");
+        path.to_str().unwrap().to_string()
+    });
 
-    #[test]
-    fn test_mulh() {
-        let mut cpu = RISCV64 {
-            state: NemuState::Running,
-            regs: GeneralRegs::new(),
-            halt_pc: 0,
-            halt_ret: 0,
-            mmu: MMU::new(PhyMem::new(PAddr(MBASE), MSIZE as usize), mmu::Mode::Bare),
-        };
-
-        // Test LUI instruction
-        let insn = Instruction::Mulh(RType(0).with(GRegName::a0, GRegName::a1, GRegName::a2));
-        cpu.set_reg_by_name(GRegName::a1.into(), -1_i64 as u64);
-        cpu.set_reg_by_name(GRegName::a2.into(), -1_i64 as u64);
-        cpu.exec_and_get_next_pc(0, insn);
-        // (-1)*(−1) >> 64
-        // 0x00000000000000000000000000000001 >> 64
-        assert_eq!(cpu.regs.get(GRegName::a0), 0);
-
-        let insn = Instruction::Mulhu(RType(0).with(GRegName::a0, GRegName::a1, GRegName::a2));
-        cpu.exec_and_get_next_pc(0, insn);
-        // (2^64-1)*(2^64-1) >> 64
-        // 0xFFFFFFFFFFFFFFFE0000000000000001 >> 64
-        assert_eq!(cpu.regs.get(GRegName::a0), u64::MAX - 1);
-
-        let insn = Instruction::Mulhsu(RType(0).with(GRegName::a0, GRegName::a1, GRegName::a2));
-        cpu.exec_and_get_next_pc(0, insn);
-        // −(2^64-1) >> 64
-        // 0xFFFFFFFFFFFFFFFF0000000000000001 >> 64
-        assert_eq!(cpu.regs.get(GRegName::a0), u64::MAX);
-    }
-
-    const CPU_TESTS_DIR: &str = "/workspaces/course/ics-pa/am-kernels/tests/cpu-tests/build/";
-    const ALU_TESTS_DIR: &str = "/workspaces/course/ics-pa/am-kernels/tests/alu-tests/build/";
+    const TARGET_DIR: Lazy<String> = Lazy::new(|| {
+        let mut project_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+        project_dir = project_dir.strip_suffix("/nemu").unwrap().to_string();
+        project_dir + "/target/riscv64gc-unknown-none-elf/release/"
+    });
 
     fn run_cpu_test_once(testcase: &str) {
-        let file = format!("{}{}", CPU_TESTS_DIR, testcase);
+        let file = format!("{}{}", CPU_TESTS_DIR.as_str(), testcase);
         run_test_once(&file);
     }
 
     fn run_alu_test_once() {
-        let file = format!("{}{}", ALU_TESTS_DIR, "alutest-riscv64-nemu.bin");
+        let file = format!("{}{}", ALU_TESTS_DIR.as_str(), "alutest-riscv64-nemu.bin");
+        run_test_once(&file);
+    }
+
+    fn run_my_test_once(testcase: &str) {
+        let file = format!("{}/{}", TARGET_DIR.as_str(), testcase);
         run_test_once(&file);
     }
 
     fn run_test_once(file: &str) {
         info!("testing test with {}", file);
-        let mut phy_mem = PhyMem::new(PAddr(MBASE), MSIZE as usize);
-        phy_mem
-            .add_mmio(
-                SERIAL_MMIO_START,
-                SERIAL_MMIO_START + 1,
-                "serial",
-                Serial::new_mmio(),
-            )
-            .unwrap();
+        let phy_mem = PhyMem::new(PAddr(MBASE), MSIZE as usize).with_default_mmios();
         let mut cpu = RISCV64 {
             state: NemuState::Running,
+            reserve: Reserve::default(),
             regs: GeneralRegs::new(),
             halt_pc: 0,
             halt_ret: 0,
@@ -889,6 +1004,8 @@ mod tests {
         run_cpu_test_once("div-riscv64-nemu.bin");
         run_cpu_test_once("dummy-riscv64-nemu.bin");
         run_cpu_test_once("fact-riscv64-nemu.bin");
+        // TODO: move it to cpu_tests after finish printf, vprintf, sprintf in PA
+        // it's up the to the provider of the image
         // test_alu_once("hello-str-riscv64-nemu.bin");
         run_cpu_test_once("if-else-riscv64-nemu.bin");
         run_cpu_test_once("leap-year-riscv64-nemu.bin");
@@ -915,18 +1032,82 @@ mod tests {
     }
 
     #[test]
-    fn test_failed_cases() {
-        init_log(tracing::Level::DEBUG);
-        // TODO: move it to cpu_tests after finish printf, vprintf, sprintf in PA
-        // it's up the to the provider of the image
-        run_cpu_test_once("hello-str-riscv64-nemu.bin");
-    }
-
-    #[test]
     fn test_alu() {
         init_log(tracing::Level::INFO);
         run_alu_test_once();
     }
+
+    #[test]
+    fn test_userlib_alu() {
+        init_log(tracing::Level::INFO);
+
+        run_my_test_once("add.bin");
+        run_my_test_once("add-long.bin");
+        run_my_test_once("bit.bin");
+        run_my_test_once("crc32.bin");
+        run_my_test_once("div.bin");
+        run_my_test_once("fact.bin");
+        run_my_test_once("fib.bin");
+        run_my_test_once("goldbach.bin");
+        run_my_test_once("dummy.bin");
+        run_my_test_once("if-else.bin");
+        run_my_test_once("leap-year.bin");
+        run_my_test_once("load-store.bin");
+        run_my_test_once("matrix-mul.bin");
+        run_my_test_once("max.bin");
+        run_my_test_once("mersenne.bin");
+        run_my_test_once("min3.bin");
+        run_my_test_once("mov-c.bin");
+        run_my_test_once("mul-longlong.bin");
+        run_my_test_once("pascal.bin");
+        run_my_test_once("prime.bin");
+        run_my_test_once("quick-sort.bin");
+        run_my_test_once("recursion.bin");
+        run_my_test_once("select-sort.bin");
+        run_my_test_once("shift.bin");
+        run_my_test_once("shuixianhua.bin");
+        run_my_test_once("string.bin");
+        run_my_test_once("sub-longlong.bin");
+        run_my_test_once("sum.bin");
+        run_my_test_once("switch.bin");
+        run_my_test_once("to-lower-case.bin");
+        run_my_test_once("unalign.bin");
+        run_my_test_once("wanshu.bin");
+    }
+
+    #[test]
+    fn test_userlib_atomics() {
+        run_my_test_once("alloc.bin");
+        run_my_test_once("alloc-set.bin");
+        run_my_test_once("rand.bin");
+        run_my_test_once("atomics.bin");
+        run_my_test_once("future.bin");
+    }
+
+    #[test]
+    fn test_userlib_ioe() {
+        run_my_test_once("tracing.bin");
+        run_my_test_once("time.bin");
+        run_my_test_once("colorful.bin");
+        run_my_test_once("dummy.bin");
+        run_my_test_once("backtrace.bin");
+        run_my_test_once("qsort_bench.bin");
+    }
+
+    // #[test]
+    // fn test_am_kernel_demos() {
+    //     run_test_once(
+    //         "/workspaces/course/ics-pa/am-kernels/kernels/demo/build/demo-riscv64-nemu.elf",
+    //     );
+    // }
+
+    // #[test]
+    // fn run_benches() {
+    //     // run_test_once("/workspaces/course/ics-pa/am-kernels/benchmarks/microbench/build/microbench-riscv64-nemu.bin");
+    //     run_test_once(
+    //         "/workspaces/course/ics-pa/am-kernels/benchmarks/coremark/build/coremark-riscv64-nemu.bin",
+    //     );
+    // }
 
     use difftest::*;
 
@@ -1029,8 +1210,18 @@ mod tests {
             "wanshu-riscv64-nemu.bin",
         ];
         for i in testcases {
-            let testcase = format!("{}{}", CPU_TESTS_DIR, i);
+            let testcase = format!("{}{}", CPU_TESTS_DIR.as_str(), i);
             difftest_run(&testcase)?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_difftests_alloc() -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let testcases: &[&str] = &["alloc.bin"];
+        for i in testcases {
+            let testcase = format!("{}{}", TARGET_DIR.as_str(), i);
+            difftest_run(&dbg!(testcase))?;
         }
         Ok(())
     }
@@ -1040,17 +1231,10 @@ mod tests {
         let mut image = Vec::new();
         file.read_to_end(&mut image).unwrap();
 
-        let mut phy_mem = PhyMem::new(PAddr(MBASE), MSIZE as usize);
-        phy_mem
-            .add_mmio(
-                SERIAL_MMIO_START,
-                SERIAL_MMIO_START + 1,
-                "serial",
-                Serial::new_mmio(),
-            )
-            .unwrap();
+        let phy_mem = PhyMem::new(PAddr(MBASE), MSIZE as usize).with_default_mmios();
         let mut cpu = RISCV64 {
             state: NemuState::Running,
+            reserve: Reserve::default(),
             regs: GeneralRegs::new(),
             halt_pc: 0,
             halt_ret: 0,
@@ -1073,7 +1257,7 @@ mod tests {
                 .difftest_read_general_regs(&mut qemu_regs)
                 .unwrap();
             debug_assert_eq!(qemu_regs[32], cpu.regs.pc);
-            debug_assert_eq!(&qemu_regs, cpu.regs.all());
+            debug_assert_eq_regs(&qemu_regs, cpu.regs.all());
             let pc_offset = (qemu_regs[32] - 0x80000000) as usize;
             disasm::disasm(&image[pc_offset..pc_offset + 4], Some(qemu_regs[32]))?;
             if &image[pc_offset..pc_offset + 4] == &EBREAK {
@@ -1087,5 +1271,25 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    fn debug_assert_eq_regs(a: &[u64], b: &[u64]) {
+        assert_eq!(a.len(), b.len(), "Registers length mismatch");
+        for (i, (x, y)) in a.iter().zip(b.iter()).enumerate() {
+            let register_name = if i < 32 {
+                let reg = GRegName::from(i as u32);
+                let name: &str = reg.into();
+                name.to_string()
+            } else if i == 32 {
+                "pc".to_string()
+            } else {
+                format!("float{}", i - 32)
+            };
+            assert_eq!(
+                *x, *y,
+                "Register {} mismatch: {} != {}",
+                register_name, x, y
+            );
+        }
     }
 }

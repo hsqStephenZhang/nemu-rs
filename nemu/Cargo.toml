@@ -1,0 +1,16 @@
+[package]
+name = "nemu-rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5", features = ["derive"] }
+riscv-decode = "0.2.2"
+strum = "0.26.1"
+strum_macros = "0.26.1"
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
+disasm = { path = "../crates/disasm" }
+difftest = { path = "../crates/difftest" }
+chrono = "0.4.41"
+once_cell = "1.21.3"

@@ -1,17 +1,3 @@
-[package]
-name = "nemu-rs"
-version = "0.1.0"
-edition = "2024"
-
 [workspace]
-members = ["crates/difftest", "crates/disasm", "crates/eval"]
-
-[dependencies]
-clap = { version = "4.5", features = ["derive"] }
-riscv-decode = "0.2.2"
-strum = "0.26.1"
-strum_macros = "0.26.1"
-tracing = "0.1.41"
-tracing-subscriber = "0.3.19"
-disasm = { path = "crates/disasm" }
-difftest = { path = "crates/difftest" }
+members = ["crates/difftest", "crates/disasm", "crates/eval", "nemu", "user"]
+resolver = "3"

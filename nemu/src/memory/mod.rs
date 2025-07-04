@@ -1,4 +1,11 @@
-use crate::memory::addr::PAddr;
+use crate::{
+    device::{
+        consts::{RTC_MMIO_START, SERIAL_MMIO_START},
+        rtc::RTC,
+        serial::Serial,
+    },
+    memory::addr::PAddr,
+};
 
 pub mod addr;
 pub mod config;
@@ -31,6 +38,19 @@ impl PhyMem {
             mem: vec![0; size].into_boxed_slice(),
             mmio: Vec::new(),
         }
+    }
+
+    pub fn with_default_mmios(mut self)->Self {
+        self.add_mmio(
+            SERIAL_MMIO_START,
+            SERIAL_MMIO_START + 1,
+            "serial",
+            Serial::new_mmio(),
+        )
+        .unwrap();
+        self.add_mmio(RTC_MMIO_START, RTC_MMIO_START + 8, "rtc", RTC::new_mmio())
+            .unwrap();
+        self
     }
 
     pub fn add_mmio(
