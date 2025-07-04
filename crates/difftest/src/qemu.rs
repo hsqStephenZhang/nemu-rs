@@ -1,8 +1,8 @@
 use std::io::{BufReader, BufWriter, Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::process::{Child, Command};
-use std::thread;
 use std::time::Duration;
+use std::{thread, u64};
 
 // Constants
 // 32 general registers + 1 for PC + 32 for FPU registers
@@ -524,13 +524,15 @@ fn diff() -> Result<(), GdbError> {
     // mepc = 0x341,
     // mcause = 0x342,
     // mtval = 0x343,
-    let mscratch = difftest.difftest_read_csr_reg(0x340).unwrap_or_default();
-    let mepc = difftest.difftest_read_csr_reg(0x341).unwrap_or_default();
-    let mcause = difftest.difftest_read_csr_reg(0x342).unwrap_or_default();
-    let mtval = difftest.difftest_read_csr_reg(0x343).unwrap_or_default();
+    // mstatus = 0x300
+    let mscratch = difftest.difftest_read_csr_reg(0x340).unwrap_or(u64::MAX);
+    let mepc = difftest.difftest_read_csr_reg(0x341).unwrap_or(u64::MAX);
+    let mcause = difftest.difftest_read_csr_reg(0x342).unwrap_or(u64::MAX);
+    let mtval = difftest.difftest_read_csr_reg(0x343).unwrap_or(u64::MAX);
+    let mstatus = difftest.difftest_read_csr_reg(0x300).unwrap_or(u64::MAX);
     println!(
-        "csrs: mscratch: {:#x}, mepc: {:#x}, mcause: {:#x}, mtval: {:#x}",
-        mscratch, mepc, mcause, mtval
+        "csrs: mscratch: {:#x}, mepc: {:#x}, mcause: {:#x}, mtval: {:#x} mstatus: {:#x}",
+        mscratch, mepc, mcause, mtval, mstatus
     );
 
     Ok(())

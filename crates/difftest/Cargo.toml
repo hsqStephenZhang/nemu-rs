@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 hex = "0.4.3"
 libloading = "0.8.8"
+tracing = "0.1.41"

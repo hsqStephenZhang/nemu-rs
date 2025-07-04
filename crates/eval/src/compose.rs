@@ -21,7 +21,7 @@ where
     }
 }
 
-impl <T> Eat for Rc<T>
+impl<T> Eat for Rc<T>
 where
     T: Eat,
 {
@@ -486,8 +486,9 @@ impl<T: Eat> MapperExt for T {
 #[cfg(test)]
 mod json_test {
 
-    use super::*;
     use std::collections::*;
+
+    use super::*;
 
     pub struct Debugger<T>(pub T);
 

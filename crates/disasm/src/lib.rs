@@ -1,4 +1,4 @@
-use capstone::{Insn, prelude::*};
+pub use capstone::{Insn, prelude::*};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DisasmError {

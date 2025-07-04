@@ -6,7 +6,6 @@ pub mod compose;
 pub mod concat;
 
 use compose::*;
-
 /*
 <expr> ::= <decimal-number>
   | <hexadecimal-number>    # "0x"
@@ -33,7 +32,6 @@ elimination of left recursion version:
               | <reg_name>
               | "(" <expr> ")"
  */
-
 use thiserror::Error;
 
 #[derive(Error, Debug, PartialEq)]

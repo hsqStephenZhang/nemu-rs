@@ -18,6 +18,8 @@ pub type DifftestExec = extern "C" fn(u64);
 pub type DifftestRaiseIntr = extern "C" fn(u64);
 pub type DifftestInit = extern "C" fn(u32);
 
+pub use libloading;
+
 pub struct DifftestUtilFns<'lib> {
     pub memcpy_fn: libloading::Symbol<'lib, DifftestMemcpy>,
     pub regcpy_fn: libloading::Symbol<'lib, DifftestRegcpy>,
@@ -35,9 +37,13 @@ pub unsafe fn load_difftest_functions<'lib>(
     let regcpy_fn: libloading::Symbol<DifftestRegcpy> = lib.get(b"difftest_regcpy")?;
     let exec_fn: libloading::Symbol<DifftestExec> = lib.get(b"difftest_exec")?;
     let raise_intr_fn: libloading::Symbol<DifftestRaiseIntr> = lib.get(b"difftest_raise_intr")?;
-    println!(
+    tracing::trace!(
         "fn difftest_init: {:?}, memcpy: {:?}, regcpy: {:?}, exec: {:?}, raise_intr: {:?}",
-        init_fn, memcpy_fn, regcpy_fn, exec_fn, raise_intr_fn
+        init_fn,
+        memcpy_fn,
+        regcpy_fn,
+        exec_fn,
+        raise_intr_fn
     );
 
     let res = DifftestUtilFns {
