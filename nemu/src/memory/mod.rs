@@ -1,34 +1,9 @@
-use crate::{
-    device::{
-        consts::{RTC_MMIO_START, SERIAL_MMIO_START},
-        rtc::RTC,
-        serial::Serial,
-    },
-    memory::addr::PAddr,
-};
-
-pub mod addr;
-pub mod config;
-
-pub trait IOMap: std::fmt::Debug {
-    fn read(&self, offset: PAddr) -> u64;
-    fn write(&mut self, offset: PAddr, value: u64);
-}
-
-#[derive(Debug)]
-pub struct IOMapEntry {
-    start: PAddr,
-    end: PAddr,
-    name: &'static str,
-    io: Box<dyn IOMap>,
-}
+use crate::addr_space::{PAddr, Size};
 
 #[derive(Debug)]
 pub struct PhyMem {
     base_addr: PAddr,
     mem: Box<[u8]>,
-    // KISS
-    mmio: Vec<IOMapEntry>,
 }
 
 impl PhyMem {
@@ -36,67 +11,25 @@ impl PhyMem {
         PhyMem {
             base_addr,
             mem: vec![0; size].into_boxed_slice(),
-            mmio: Vec::new(),
         }
     }
 
-    pub fn with_default_mmios(mut self)->Self {
-        self.add_mmio(
-            SERIAL_MMIO_START,
-            SERIAL_MMIO_START + 1,
-            "serial",
-            Serial::new_mmio(),
-        )
-        .unwrap();
-        self.add_mmio(RTC_MMIO_START, RTC_MMIO_START + 8, "rtc", RTC::new_mmio())
-            .unwrap();
-        self
+    pub fn contains(&self, addr: PAddr, size: Size) -> bool {
+        let size = match size {
+            Size::Byte => 1,
+            Size::HalfWord => 2,
+            Size::Word => 4,
+            Size::DoubleWord => 8,
+        };
+        let end_addr = PAddr(addr.0 + size as u64);
+        addr >= self.base_addr && end_addr.0 <= self.base_addr.0 + self.mem.len() as u64
     }
 
-    pub fn add_mmio(
-        &mut self,
-        start: PAddr,
-        end: PAddr,
-        name: &'static str,
-        io: Box<dyn IOMap>,
-    ) -> std::result::Result<(), Box<dyn std::error::Error>> {
-        match self.get_mmio(start) {
-            Some(exist) => Err(format!(
-                "MMIO region {} overlaps with existing region {}",
-                name, exist.name
-            )
-            .into()),
-            None => {
-                self.mmio.push(IOMapEntry {
-                    start,
-                    end,
-                    name,
-                    io,
-                });
-                Ok(())
-            }
-        }
+    pub fn range(&self) -> (PAddr, PAddr) {
+        let start = self.base_addr;
+        let end = PAddr(self.base_addr.0 + self.mem.len() as u64);
+        (start, end)
     }
-
-    pub fn get_mmio(&self, addr: PAddr) -> Option<&IOMapEntry> {
-        self.mmio
-            .iter()
-            .find(|entry| entry.start <= addr && addr < entry.end)
-    }
-
-    pub fn get_mmio_mut(&mut self, addr: PAddr) -> Option<&mut IOMapEntry> {
-        self.mmio
-            .iter_mut()
-            .find(|entry| entry.start <= addr && addr < entry.end)
-    }
-}
-
-#[derive(Clone, Debug)]
-pub enum Size {
-    Byte = 1,
-    HalfWord = 2,
-    Word = 4,
-    DoubleWord = 8,
 }
 
 impl PhyMem {
@@ -126,11 +59,6 @@ impl PhyMem {
 // TODO: memory alignment?
 impl PhyMem {
     pub fn read(&self, addr: PAddr, size: Size) -> Option<u64> {
-        if let Some(mmio) = self.get_mmio(addr) {
-            // TODO: is boundary check necessary?
-            let offset = addr.0 - mmio.start.0;
-            return Some(mmio.io.read(offset.into()));
-        }
         if addr < self.base_addr || addr.0 >= self.base_addr.0 + self.mem.len() as u64 {
             panic!("Address out of bounds: {:?}", addr);
         }
@@ -146,12 +74,6 @@ impl PhyMem {
     }
 
     pub fn write(&mut self, addr: PAddr, size: Size, value: u64) {
-        if let Some(mmio) = self.get_mmio_mut(addr) {
-            // TODO: is boundary check necessary?
-            let offset = addr.0 - mmio.start.0;
-            mmio.io.write(offset.into(), value);
-            return;
-        }
         if addr < self.base_addr || addr.0 >= self.base_addr.0 + self.mem.len() as u64 {
             panic!(
                 "Address out of bounds: {:x?}, range: [{:x?}, {:x?})",
@@ -192,7 +114,7 @@ impl PhyMem {
 
 #[cfg(test)]
 mod tests {
-    use crate::memory::{PhyMem, addr::PAddr};
+    use crate::{addr_space::PAddr, memory::PhyMem};
 
     #[test]
     fn t1() {

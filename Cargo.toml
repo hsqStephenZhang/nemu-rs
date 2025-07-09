@@ -1,3 +1,7 @@
 [workspace]
 members = ["crates/difftest", "crates/disasm", "crates/eval", "nemu", "user"]
 resolver = "3"
+
+[profile.release]
+debug = true
+opt-level = 1

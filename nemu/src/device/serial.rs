@@ -1,25 +1,71 @@
 use std::io::Write;
 
-use crate::memory::{IOMap, addr::PAddr};
+use crate::{
+    addr_space::{IOMap, PAddr},
+    device::AsyncDevice,
+    utils::UPSafeCellRaw,
+};
+
+lazy_static::lazy_static! {
+    pub static ref BYTES_QUEUE: crossbeam_queue::ArrayQueue<u8> = crossbeam_queue::ArrayQueue::new(1024);
+
+    pub static ref SERIAL_DEVICE: UPSafeCellRaw<SerialDevice> = unsafe {
+        UPSafeCellRaw::new(SerialDevice)
+    };
+}
 
 #[derive(Debug)]
-pub struct Serial;
+pub struct SerialIOMap;
 
-impl IOMap for Serial {
-    fn read(&self, _: crate::memory::addr::PAddr) -> u64 {
+impl IOMap for SerialIOMap {
+    fn read(&self, _: crate::addr_space::PAddr) -> u64 {
         panic!("Serial port does not support read operations");
     }
 
-    fn write(&mut self, offset: crate::memory::addr::PAddr, value: u64) {
+    fn write(&mut self, offset: crate::addr_space::PAddr, value: u64) {
         debug_assert_eq!(offset, PAddr(0));
         debug_assert_eq!(value & 0xff, value);
-        print!("{}", value as u8 as char);
-        let _ = std::io::stdout().flush();
+        if BYTES_QUEUE.push(value as u8).is_err() {
+            eprintln!("Serial port queue is full, dropping byte: {}", value);
+        }
+    }
+
+    fn len(&self) -> usize {
+        1
     }
 }
 
-impl Serial {
+impl SerialIOMap {
     pub fn new_mmio() -> Box<dyn IOMap> {
-        Box::new(Serial)
+        Box::new(SerialIOMap)
+    }
+}
+
+pub struct SerialDevice;
+
+impl SerialDevice {
+    pub fn flush() -> std::io::Result<()> {
+        while let Some(byte) = BYTES_QUEUE.pop() {
+            print!("{}", byte as char);
+        }
+        std::io::stdout().flush()
+    }
+}
+
+impl AsyncDevice for SerialDevice {
+    fn name(&self) -> &'static str {
+        "serial"
+    }
+
+    fn period(&self) -> Option<u64> {
+        Some(1)
+    }
+
+    fn callback(&self) -> Option<Box<dyn FnMut(u64, u64) + 'static>> {
+        Some(Box::new(move |_, _| {
+            if let Err(e) = SerialDevice::flush() {
+                eprintln!("Failed to flush serial output: {}", e);
+            }
+        }))
     }
 }

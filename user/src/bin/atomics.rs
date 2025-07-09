@@ -146,5 +146,6 @@ fn main() -> i32 {
         "Final value should be 0b1111111 after fetch_max(0b1111111)"
     );
 
+    println!("atomics test passed!");
     return 0;
 }

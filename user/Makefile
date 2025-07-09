@@ -17,8 +17,6 @@ endif
 
 ELFS := $(patsubst $(APP_DIR)/%.rs, $(TARGET_DIR)/%, $(APPS))
 
-ELFS += $(TARGET_DIR)/qsort_bench
-
 # Debug output
 $(info ==============================)
 $(info APP_DIR = $(APP_DIR))

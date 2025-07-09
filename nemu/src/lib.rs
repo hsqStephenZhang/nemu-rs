@@ -1,8 +1,13 @@
+pub mod addr_space;
+pub mod config;
 pub mod cpu;
 pub mod device;
 pub mod engine;
 pub mod memory;
 pub mod monitor;
+pub mod simulator;
+pub mod timer;
+pub mod utils;
 
 use std::fs::File;
 use std::io::Read;
@@ -11,8 +16,7 @@ use std::path::Path;
 use clap::{Parser, ValueEnum};
 use tracing::{Level, info};
 
-use crate::cpu::Cpu;
-use crate::memory::config::{MBASE, RESET_VECTOR};
+use crate::config::{MBASE, RESET_VECTOR};
 
 #[derive(Parser, Debug, Clone, ValueEnum)]
 pub enum Difftester {
@@ -54,7 +58,7 @@ pub fn init_log(level: Level) {
 }
 
 // load image to RESET_VECTOR
-pub(crate) fn load_img(img_file: &String, phy_mem: &mut [u8]) -> u64 {
+pub fn load_img(img_file: &String, phy_mem: &mut [u8]) -> u64 {
     let path = Path::new(img_file);
     let f = File::open(path).unwrap();
     let size = f.metadata().unwrap().len();
@@ -75,13 +79,4 @@ pub(crate) fn load_img(img_file: &String, phy_mem: &mut [u8]) -> u64 {
         .copy_from_slice(&f.bytes().map(|b| b.unwrap()).collect::<Vec<u8>>());
 
     size
-}
-
-pub struct Simulator<C: Cpu> {
-    cpu: C,
-    batch: bool,
-}
-
-impl<C: Cpu> Simulator<C> {
-    pub fn run(mut self) {}
 }

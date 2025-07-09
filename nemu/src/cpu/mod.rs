@@ -1,4 +1,4 @@
-use crate::memory::addr::VAddr;
+use crate::addr_space::{AddressSpace, VAddr};
 
 pub mod riscv64;
 
@@ -13,17 +13,18 @@ pub enum NemuState {
 
 pub trait Cpu {
     type Instruction;
+    type Context;
 
-    fn ifetch(&mut self, pc: VAddr) -> Option<Self::Instruction>;
+    fn ifetch(&mut self, addr_space: &mut AddressSpace, pc: VAddr) -> Option<Self::Instruction>;
 
     // execute one instruction
-    fn exec_once(&mut self, pc: VAddr);
+    fn exec_once(&mut self, ctx: &mut Self::Context, addr_space: &mut AddressSpace, pc: VAddr);
 
     // execute multiple instructions
-    fn exec(&mut self, n: usize) -> usize {
+    fn exec(&mut self, ctx: &mut Self::Context, addr_space: &mut AddressSpace, n: usize) -> usize {
         let mut i = 0;
         for _ in 0..n {
-            self.exec_once(self.pc());
+            self.exec_once(ctx, addr_space, self.pc());
             i += 1;
             if self.state() != NemuState::Running {
                 break;

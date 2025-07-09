@@ -1,8 +1,7 @@
-use crate::memory::{
-    PhyMem, Size,
-    addr::{PAddr, VAddr},
-};
+use crate::addr_space::{AddressSpace, Size};
+use crate::addr_space::{PAddr, VAddr};
 
+#[allow(unused)]
 #[derive(Debug, Clone, Copy)]
 pub enum Mode {
     Bare,
@@ -12,12 +11,12 @@ pub enum Mode {
 #[derive(Debug)]
 pub struct MMU {
     mode: Mode,
-    phy_mem: PhyMem,
 }
 
+#[allow(unused)]
 impl MMU {
-    pub fn new(phy_mem: PhyMem, mode: Mode) -> Self {
-        MMU { mode, phy_mem }
+    pub fn new(mode: Mode) -> Self {
+        MMU { mode }
     }
 
     fn translate(&mut self, vaddr: VAddr) -> Option<PAddr> {
@@ -29,23 +28,38 @@ impl MMU {
         }
     }
 
-    pub fn read(&mut self, addr: VAddr, size: Size) -> Option<u64> {
+    pub fn read(&mut self, addr_space: &AddressSpace, addr: VAddr, size: Size) -> Option<u64> {
         let addr = self.translate(addr)?;
-        self.phy_mem.read(addr, size)
+        addr_space.read(addr, size).ok()
     }
 
-    pub fn write(&mut self, addr: VAddr, size: Size, value: u64) -> Option<()> {
+    pub fn write(
+        &mut self,
+        addr_space: &mut AddressSpace,
+        addr: VAddr,
+        size: Size,
+        value: u64,
+    ) -> Option<()> {
         let addr = self.translate(addr)?;
-        self.phy_mem.write(addr, size, value);
-        Some(())
+        addr_space.write(addr, size, value).ok()
     }
 
     #[cfg(test)]
-    pub fn load_program(&mut self, addr: VAddr, data: &[u8]) -> Option<()> {
+    pub fn load_program(
+        &mut self,
+        addr_space: &mut AddressSpace,
+        addr: VAddr,
+        data: &[u8],
+    ) -> Option<()> {
         let mut offset = 0;
         while offset < data.len() {
             let size = Size::Byte; // Assuming byte size for simplicity
-            self.write(VAddr(addr.0 + offset as u64), size, data[offset] as u64)?;
+            self.write(
+                addr_space,
+                VAddr(addr.0 + offset as u64),
+                size,
+                data[offset] as u64,
+            )?;
             offset += 1;
         }
         Some(())

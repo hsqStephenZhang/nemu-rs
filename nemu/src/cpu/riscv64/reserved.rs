@@ -1,16 +1,13 @@
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Reserve {
     addr: u64,
-    valid: bool
+    valid: bool,
 }
 
 #[allow(unused)]
 impl Reserve {
     pub fn new(addr: u64) -> Self {
-        Reserve {
-            addr,
-            valid: true
-        }
+        Reserve { addr, valid: true }
     }
 
     pub fn reset(&mut self, addr: u64) {

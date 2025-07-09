@@ -34,6 +34,14 @@ impl std::ops::Add<u64> for PAddr {
     }
 }
 
+impl std::ops::Sub<PAddr> for PAddr {
+    type Output = Self;
+
+    fn sub(self, rhs: PAddr) -> Self::Output {
+        PAddr(self.0 - rhs.0)
+    }
+}
+
 impl VAddr {
     pub fn new(addr: u64) -> Self {
         VAddr(addr)
@@ -56,6 +64,15 @@ impl From<VAddr> for u64 {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum Size {
+    Byte = 1,
+    HalfWord = 2,
+    Word = 4,
+    DoubleWord = 8,
+}
+
+#[allow(unused)]
 pub trait Translate {
     fn translate(&mut self, vaddr: VAddr) -> Option<PAddr>;
 }

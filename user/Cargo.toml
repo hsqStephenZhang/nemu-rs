@@ -11,10 +11,6 @@ hashbrown = "0.15.4"
 tracing = { version = "0.1", default-features = false, features = ["attributes"] }
 tracing-subscriber = { version = "0.3", default-features = false, features = ["alloc"] }
 
-[profile.release]
-debug = true
-opt-level = 1
-
 [[bin]]
-name = "qsort_bench"
-path = "benches/qsort.rs"
+name = "io_test_keyboard"
+path = "io_tests/keyboard.rs"

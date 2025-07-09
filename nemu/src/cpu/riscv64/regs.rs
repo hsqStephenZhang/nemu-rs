@@ -1,7 +1,7 @@
 use strum_macros::{EnumString, IntoStaticStr};
 use tracing::*;
 
-use crate::memory::config::{MBASE, PC_RESET_OFFSET};
+use crate::config::{MBASE, PC_RESET_OFFSET};
 
 // register name by ABI
 #[allow(non_camel_case_types)]
@@ -111,6 +111,7 @@ impl std::fmt::Display for GeneralRegs {
     }
 }
 
+#[allow(unused)]
 impl GeneralRegs {
     pub fn new() -> Self {
         GeneralRegs::default()
