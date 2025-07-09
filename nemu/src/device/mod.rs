@@ -20,7 +20,7 @@ pub trait AsyncDevice {
 
 pub fn init(clock: &mut VirtualClock) {
     clock.register_timer(
-        0,
+        1,
         serial::SERIAL_DEVICE.get().callback().unwrap(),
         serial::SERIAL_DEVICE.get().period(),
     );
@@ -28,13 +28,14 @@ pub fn init(clock: &mut VirtualClock) {
     // to run the event loop
     #[cfg(not(test))]
     {
+        sdl2::SDL_DEVICE.get();
+        // clock.register_timer(
+        //     100,
+        //     vga::VGA_DEVICE.get().callback().unwrap(),
+        //     vga::VGA_DEVICE.get().period(),
+        // );
         clock.register_timer(
-            0,
-            vga::VGA_DEVICE.get().callback().unwrap(),
-            vga::VGA_DEVICE.get().period(),
-        );
-        clock.register_timer(
-            0,
+            100,
             keyboard::KEY_BOARD_DEVICE.get().callback().unwrap(),
             keyboard::KEY_BOARD_DEVICE.get().period(),
         );
@@ -42,14 +43,11 @@ pub fn init(clock: &mut VirtualClock) {
 }
 
 pub fn dummy_init(clock: &mut VirtualClock) {
-    static ONCE: std::sync::Once = std::sync::Once::new();
-    ONCE.call_once(|| {
-        clock.register_timer(
-            0,
-            |_, _| {
-                println!("cycle+100");
-            },
-            Some(100),
-        );
-    });
+    clock.register_timer(
+        0,
+        |_, _| {
+            println!("cycle+100");
+        },
+        Some(100),
+    );
 }

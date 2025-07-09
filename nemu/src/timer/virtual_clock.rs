@@ -1,5 +1,6 @@
-use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+
+use tracing::info;
 
 type Time = u64; // 纳秒为单位的虚拟时间
 
@@ -52,7 +53,7 @@ pub enum ElapsePolicy {
 pub struct VirtualClock {
     now: Time,
     policy: ElapsePolicy,
-    timers: BinaryHeap<Reverse<VirtualTimer>>,
+    timers: BinaryHeap<VirtualTimer>,
 }
 
 impl VirtualClock {
@@ -78,9 +79,9 @@ impl VirtualClock {
     }
 
     fn check_timers(&mut self) {
-        while let Some(Reverse(timer)) = self.timers.peek() {
+        while let Some(timer) = self.timers.peek() {
             if timer.when <= self.now {
-                let mut timer = self.timers.pop().unwrap().0;
+                let mut timer = self.timers.pop().unwrap();
                 (timer.callback)(self.now, timer.when);
                 if let Some(period) = timer.period {
                     // 如果有周期性定时器，重新注册
@@ -89,7 +90,7 @@ impl VirtualClock {
                     } else {
                         timer.when = self.now + period;
                     }
-                    self.timers.push(Reverse(timer));
+                    self.timers.push(timer);
                 }
             } else {
                 break;
@@ -103,7 +104,8 @@ impl VirtualClock {
             period,
             callback: Box::new(callback),
         };
-        self.timers.push(Reverse(timer));
+        info!("Registering timer: {:?}", timer);
+        self.timers.push(timer);
     }
 }
 
@@ -183,5 +185,39 @@ mod tests {
             4,
             "Periodic timer should have been called 4 times"
         );
+    }
+
+    #[test]
+    fn test_multi_timers() {
+        let mut clock = VirtualClock::new();
+        let count = Arc::new(AtomicUsize::new(0));
+
+        let c = count.clone();
+        clock.register_timer(
+            100,
+            move |_, _| {
+                let res = c.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                println!("Timer called, count: {}", res);
+            },
+            Some(100),
+        );
+        clock.register_timer(
+            100,
+            |_, _| {
+                println!("Another timer called");
+            },
+            Some(100),
+        );
+        clock.register_timer(
+            100,
+            |_, _| {
+                println!("Yet another timer called");
+            },
+            Some(100),
+        );
+
+        for _ in 0..10 {
+            clock.advance(100);
+        }
     }
 }

@@ -1,5 +1,7 @@
 use std::io::Write;
 
+use tracing::error;
+
 use crate::{
     addr_space::{IOMap, PAddr},
     device::AsyncDevice,
@@ -26,7 +28,7 @@ impl IOMap for SerialIOMap {
         debug_assert_eq!(offset, PAddr(0));
         debug_assert_eq!(value & 0xff, value);
         if BYTES_QUEUE.push(value as u8).is_err() {
-            eprintln!("Serial port queue is full, dropping byte: {}", value);
+            error!("Serial port queue is full, dropping byte: {}", value);
         }
     }
 
@@ -45,10 +47,16 @@ pub struct SerialDevice;
 
 impl SerialDevice {
     pub fn flush() -> std::io::Result<()> {
+        let mut printed = false;
         while let Some(byte) = BYTES_QUEUE.pop() {
             print!("{}", byte as char);
+            printed = true;
         }
-        std::io::stdout().flush()
+        if printed {
+            std::io::stdout().flush()
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -64,7 +72,7 @@ impl AsyncDevice for SerialDevice {
     fn callback(&self) -> Option<Box<dyn FnMut(u64, u64) + 'static>> {
         Some(Box::new(move |_, _| {
             if let Err(e) = SerialDevice::flush() {
-                eprintln!("Failed to flush serial output: {}", e);
+                error!("Failed to flush serial output: {}", e);
             }
         }))
     }

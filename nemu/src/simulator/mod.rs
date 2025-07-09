@@ -1,4 +1,9 @@
-use crate::{addr_space::AddressSpace, cpu::Cpu, timer::virtual_clock::VirtualClock};
+use crate::{
+    addr_space::{AddressSpace, VAddr},
+    config::MBASE,
+    cpu::Cpu,
+    timer::virtual_clock::VirtualClock,
+};
 
 pub struct Simulator<C: Cpu> {
     cpu: C,
@@ -13,6 +18,10 @@ impl<C: Cpu<Context = Ctx>, Ctx> Simulator<C> {
             addr_space,
             virtual_clock: VirtualClock::new(),
         }
+    }
+
+    pub fn load_img(&mut self,image: &[u8]) -> Result<(), String> {
+        self.cpu.debug_load_img(&mut self.addr_space, VAddr(MBASE), image)
     }
 
     pub fn run(&mut self, ctx: &mut Ctx, max_instructions: usize) -> usize {

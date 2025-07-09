@@ -44,7 +44,6 @@ impl MMU {
         addr_space.write(addr, size, value).ok()
     }
 
-    #[cfg(test)]
     pub fn load_program(
         &mut self,
         addr_space: &mut AddressSpace,

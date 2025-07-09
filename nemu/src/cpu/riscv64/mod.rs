@@ -138,6 +138,18 @@ impl Cpu for RISCV64 {
     fn raise_interrupt(&mut self, _interrupt: u64) {
         todo!()
     }
+
+    fn debug_load_img(
+        &mut self,
+        addr_space: &mut AddressSpace,
+        vaddr: VAddr,
+        data: &[u8],
+    ) -> Result<(), String> {
+        match self.mmu.load_program(addr_space, vaddr, data) {
+            Some(_) => Ok(()),
+            None => Err(format!("Failed to load program at {:#x}", vaddr.0)),
+        }
+    }
 }
 
 impl RISCV64 {

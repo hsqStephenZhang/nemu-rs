@@ -45,4 +45,11 @@ pub trait Cpu {
     fn set_reg_by_name(&mut self, reg: &str, value: u64) -> Option<()>;
 
     fn raise_interrupt(&mut self, interrupt: u64);
+
+    fn debug_load_img(
+        &mut self,
+        addr_space: &mut AddressSpace,
+        vaddr: VAddr,
+        data: &[u8],
+    )-> Result<(), String>;
 }

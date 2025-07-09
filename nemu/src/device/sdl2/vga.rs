@@ -134,7 +134,7 @@ impl AsyncDevice for VGADevice {
     }
 
     fn period(&self) -> Option<u64> {
-        Some(100)
+        Some(1000)
     }
 
     // read frame buffer and update screen

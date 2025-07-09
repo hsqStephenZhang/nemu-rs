@@ -16,6 +16,7 @@ else
 endif
 
 ELFS := $(patsubst $(APP_DIR)/%.rs, $(TARGET_DIR)/%, $(APPS))
+ELFS += $(TARGET_DIR)/io_test_keyboard
 
 # Debug output
 $(info ==============================)
@@ -28,6 +29,8 @@ elf: $(APPS)
 	@echo "[INFO] Would run: cargo build -Z build-std=core,alloc --release"
 	# force rebuild the core and alloc with 
 	@cargo build -Z build-std=core,alloc --release
+
+
 
 binary: elf
 	@$(foreach elf, $(ELFS), \

@@ -255,6 +255,7 @@ mod scancode {
 
     #[rustfmt::skip]
     #[allow(non_camel_case_types)]
+    #[repr(C)]
     #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, EnumString, IntoStaticStr, EnumIter, FromPrimitive)]
     pub enum KeyCode {
         ESCAPE = 1, F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
@@ -305,7 +306,7 @@ mod scancode {
 use std::sync::Arc;
 
 use crossbeam_queue::ArrayQueue;
-use tracing::error;
+use tracing::{error, info};
 
 pub use self::scancode::*;
 use crate::addr_space::IOMap;
@@ -328,7 +329,7 @@ impl IOMap for KeyboardIOMap {
     fn read(&self, offset: crate::addr_space::PAddr) -> u64 {
         if offset.as_u64() != 0x0 {
             error!(
-                "KeyboardDriver only supports reading from offset 0x0, actual offset: {}",
+                "KeyboardIOMap only supports reading from offset 0x0, actual offset: {}",
                 offset.as_u64()
             );
             return 0;
@@ -339,7 +340,7 @@ impl IOMap for KeyboardIOMap {
 
     fn write(&mut self, offset: crate::addr_space::PAddr, _: u64) {
         error!(
-            "KeyboardDriver does not support writing, actual offset: {}",
+            "KeyboardIOMap does not support writing, actual offset: {}",
             offset.as_u64(),
         );
     }
@@ -389,7 +390,7 @@ impl AsyncDevice for KeyboardDevice {
     }
 
     fn period(&self) -> Option<u64> {
-        Some(100)
+        Some(1000)
     }
 
     fn callback(&self) -> Option<Box<dyn FnMut(u64, u64) + 'static>> {

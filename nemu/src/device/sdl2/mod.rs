@@ -1,5 +1,6 @@
 use num_traits::FromPrimitive;
 use sdl2::{event::Event, pixels::PixelFormatEnum, render::Canvas, video::Window};
+use tracing::info;
 
 use crate::{
     device::keyboard::{MyScancode, send_key},
@@ -22,6 +23,7 @@ pub struct SdlDevice {
     canvas: Canvas<Window>,
     screen_w: u32,
     screen_h: u32,
+    exit_on_quit: bool,
 }
 
 impl SdlDevice {
@@ -33,14 +35,19 @@ impl SdlDevice {
             .position_centered()
             .build()
             .map_err(|e| e.to_string())?;
-        let mut canvas = window.into_canvas().build().unwrap();
-        canvas.clear();
+        let canvas = window.into_canvas().build().unwrap();
+
+        info!(
+            "SDL initialized with screen size: {}x{}",
+            screen_w, screen_h
+        );
 
         Ok(SdlDevice {
             sdl_context,
             canvas,
             screen_h,
             screen_w,
+            exit_on_quit: true,
         })
     }
 
@@ -55,6 +62,9 @@ impl SdlDevice {
             match event {
                 Event::Quit { .. } => {
                     println!("Quit event received, exiting...");
+                    if self.exit_on_quit {
+                        std::process::exit(0);
+                    }
                 }
                 Event::KeyDown {
                     scancode: Some(code),
