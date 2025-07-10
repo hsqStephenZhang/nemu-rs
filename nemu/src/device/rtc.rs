@@ -1,4 +1,4 @@
-use crate::{addr_space::IOMap, device::AsyncDevice, utils::UPSafeCellRaw};
+use crate::{addr_space::{IOMap, Size}, device::AsyncDevice, utils::UPSafeCellRaw};
 
 #[derive(Debug)]
 pub struct RTCIOMap;
@@ -13,7 +13,7 @@ impl IOMap for RTCIOMap {
         }
     }
 
-    fn write(&mut self, _offset: crate::addr_space::PAddr, _value: u64) {
+    fn write(&mut self, _offset: crate::addr_space::PAddr, _size: Size, _value: u64) {
         panic!("RTC does not support write operations");
     }
 

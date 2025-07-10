@@ -23,7 +23,12 @@ pub enum AddrError {
 pub trait IOMap: std::fmt::Debug {
     fn len(&self) -> usize;
     fn read(&self, offset: PAddr) -> u64;
-    fn write(&mut self, offset: PAddr, value: u64);
+    // write operation of multiple bytes maybe optimized by compiler
+    // to be Size of 4, or 8 bytes
+    // therefore, we need to specify the size of the write operation
+    // in practice, this is only used for MMIO devices with continuous buffer
+    // e.g. VGA framebuffer
+    fn write(&mut self, offset: PAddr, size: Size, value: u64);
 }
 
 #[derive(Debug)]
@@ -132,7 +137,7 @@ impl AddressSpace {
     ) -> std::result::Result<(), AddrError> {
         if let Some(mmio) = self.get_mmio_mut(addr) {
             let offset = addr - mmio.start;
-            mmio.ops.write(offset, value);
+            mmio.ops.write(offset, size, value);
         } else if self.phy_mem.contains(addr, size) {
             self.phy_mem.write(addr, size, value);
         } else {

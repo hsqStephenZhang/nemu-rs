@@ -2,7 +2,13 @@ use std::io::Read;
 
 use clap::Parser;
 use nemu_rs::{
-    addr_space::{AddressSpace, PAddr}, config::{MBASE, MSIZE}, cpu::riscv64::{mmu, RISCV64}, device, init_log, memory::PhyMem, simulator, timer::virtual_clock::VirtualClock
+    addr_space::{AddressSpace, PAddr},
+    config::{MBASE, MSIZE},
+    cpu::riscv64::{RISCV64, mmu},
+    device, init_log,
+    memory::PhyMem,
+    simulator,
+    timer::virtual_clock::VirtualClock,
 };
 
 const DEFAULT_IMG: &[u32] = &[
@@ -21,10 +27,7 @@ pub struct Opt {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     init_log(tracing::Level::INFO);
-    // let opt = Opt::parse();
-    let opt = Opt{
-        image: Some("/Users/zc/codespace/rust/nemu-rs/target/riscv64gc-unknown-none-elf/release/io_test_keyboard.bin".to_string())
-    };
+    let opt = Opt::parse();
     let addr_space =
         AddressSpace::new(PhyMem::new(PAddr(MBASE), MSIZE as usize)).with_default_mmio();
     let cpu = RISCV64::new(mmu::MMU::new(mmu::Mode::Bare));

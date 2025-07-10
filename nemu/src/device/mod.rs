@@ -29,11 +29,11 @@ pub fn init(clock: &mut VirtualClock) {
     #[cfg(not(test))]
     {
         sdl2::SDL_DEVICE.get();
-        // clock.register_timer(
-        //     100,
-        //     vga::VGA_DEVICE.get().callback().unwrap(),
-        //     vga::VGA_DEVICE.get().period(),
-        // );
+        clock.register_timer(
+            100,
+            vga::VGA_DEVICE.get().callback().unwrap(),
+            vga::VGA_DEVICE.get().period(),
+        );
         clock.register_timer(
             100,
             keyboard::KEY_BOARD_DEVICE.get().callback().unwrap(),

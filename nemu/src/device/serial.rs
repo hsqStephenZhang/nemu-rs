@@ -3,7 +3,7 @@ use std::io::Write;
 use tracing::error;
 
 use crate::{
-    addr_space::{IOMap, PAddr},
+    addr_space::{IOMap, PAddr, Size},
     device::AsyncDevice,
     utils::UPSafeCellRaw,
 };
@@ -24,7 +24,7 @@ impl IOMap for SerialIOMap {
         panic!("Serial port does not support read operations");
     }
 
-    fn write(&mut self, offset: crate::addr_space::PAddr, value: u64) {
+    fn write(&mut self, offset: crate::addr_space::PAddr, _size: Size, value: u64) {
         debug_assert_eq!(offset, PAddr(0));
         debug_assert_eq!(value & 0xff, value);
         if BYTES_QUEUE.push(value as u8).is_err() {

@@ -17,6 +17,8 @@ endif
 
 ELFS := $(patsubst $(APP_DIR)/%.rs, $(TARGET_DIR)/%, $(APPS))
 ELFS += $(TARGET_DIR)/io_test_keyboard
+ELFS += $(TARGET_DIR)/io_test_vga
+ELFS += $(TARGET_DIR)/badapple
 
 # Debug output
 $(info ==============================)

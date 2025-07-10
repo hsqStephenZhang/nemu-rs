@@ -57,8 +57,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
+        let mut framebuffer = vec![0u8; 800 * 600 * 4];
+        set_framebuffer_red(&mut framebuffer);
+        DEVICE.get_mut().update_screen(&framebuffer);
+
         std::thread::sleep(Duration::from_millis(100));
     }
 
     Ok(())
+}
+
+fn set_framebuffer_red(framebuffer: &mut [u8]) {
+    // assert_eq!(framebuffer.len(), width * height * bytes_per_pixel);
+
+    for pixel in framebuffer.chunks_exact_mut(4) {
+        // ARGB8888: A, R, G, B
+        pixel[0] = 0x00;
+        pixel[1] = 0x00;
+        pixel[2] = 0xFF;
+        pixel[3] = 0xFF;
+    }
 }

@@ -14,3 +14,7 @@ tracing-subscriber = { version = "0.3", default-features = false, features = ["a
 [[bin]]
 name = "io_test_keyboard"
 path = "io_tests/keyboard.rs"
+
+[[bin]]
+name = "io_test_vga"
+path = "io_tests/video.rs"

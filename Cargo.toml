@@ -1,5 +1,12 @@
 [workspace]
-members = ["crates/difftest", "crates/disasm", "crates/eval", "nemu", "user"]
+members = [
+    "crates/difftest",
+    "crates/disasm",
+    "crates/eval",
+    "nemu",
+    "user",
+    "demos/*",
+]
 resolver = "3"
 
 [profile.release]

@@ -8,6 +8,7 @@ use core::{
 };
 
 use buddy_system_allocator::LockedHeap;
+#[macro_use]
 extern crate alloc;
 
 mod config;
@@ -66,7 +67,7 @@ fn _trm_init() -> ! {
     halt(main());
 }
 
-const USER_HEAP_SIZE: usize = 32768;
+const USER_HEAP_SIZE: usize = 0x8_000_000; // 8 MiB
 
 #[unsafe(no_mangle)]
 static mut HEAP_SPACE: [u8; USER_HEAP_SIZE] = [0; USER_HEAP_SIZE];

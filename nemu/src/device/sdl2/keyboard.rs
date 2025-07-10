@@ -306,10 +306,10 @@ mod scancode {
 use std::sync::Arc;
 
 use crossbeam_queue::ArrayQueue;
-use tracing::{error, info};
+use tracing::error;
 
 pub use self::scancode::*;
-use crate::addr_space::IOMap;
+use crate::addr_space::{IOMap, Size};
 use crate::device::AsyncDevice;
 use crate::utils::UPSafeCellRaw;
 
@@ -338,7 +338,7 @@ impl IOMap for KeyboardIOMap {
         }
     }
 
-    fn write(&mut self, offset: crate::addr_space::PAddr, _: u64) {
+    fn write(&mut self, offset: crate::addr_space::PAddr, _size: Size, _: u64) {
         error!(
             "KeyboardIOMap does not support writing, actual offset: {}",
             offset.as_u64(),
